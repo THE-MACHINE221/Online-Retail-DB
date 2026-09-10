@@ -1,3 +1,4 @@
+from collections import Counter, defaultdict
 import sqlite3
 import unittest
 from demo import ROOT, build_database
@@ -5,7 +6,7 @@ from demo import ROOT, build_database
 
 class RetailDatabaseTests(unittest.TestCase):
     def setUp(self):
-        self.db = build_database()
+        self.db = build_database(ROOT / 'tests' / 'fixture.sql')
 
     def tearDown(self):
         self.db.close()
@@ -60,6 +61,74 @@ class RetailDatabaseTests(unittest.TestCase):
     def test_unsold_product_has_undefined_return_rate(self):
         self.db.execute("INSERT INTO product VALUES (4, 1, 'Unsold demo shirt', 5000)")
         self.assertEqual(self.query('product_return_rates')[-1][-3:], (0, 0, None))
+
+
+class FullDatasetTests(unittest.TestCase):
+    def setUp(self):
+        self.db = build_database()
+
+    def tearDown(self):
+        self.db.close()
+
+    def query(self, name):
+        return self.db.execute((ROOT / 'sql' / 'analytics' / (name + '.sql')).read_text()).fetchall()
+
+    def test_reports_reconcile_with_underlying_records(self):
+        # Calculate independently in Python, without relying on the SQL views/CTEs.
+        orders = {oid: (cid, date) for oid, cid, _, date in self.db.execute('SELECT * FROM orders')}
+        items = {iid: (oid, pid, qty, price, discount)
+                 for iid, oid, pid, qty, price, discount in self.db.execute('SELECT * FROM order_item')}
+        sales, refunds, gross, discounts = (defaultdict(int) for _ in range(4))
+        sold, returned, frequency, order_counts = (Counter() for _ in range(4))
+        active = defaultdict(set)
+        for cid, date in orders.values():
+            frequency[cid] += 1
+            order_counts[date[:7]] += 1
+            active[date[:7]].add(cid)
+        for oid, pid, qty, price, discount in items.values():
+            month = orders[oid][1][:7]
+            sales[month] += qty * (price - discount)
+            gross[month] += qty * price
+            discounts[month] += qty * discount
+            sold[pid] += qty
+        for _, iid, date, qty in self.db.execute('SELECT * FROM return_item'):
+            _, pid, _, price, discount = items[iid]
+            refunds[date[:7]] += qty * (price - discount)
+            returned[pid] += qty
+        expected = [(month, sales[month] / 100, refunds[month] / 100,
+                     (sales[month] - refunds[month]) / 100)
+                    for month in sorted(sales.keys() | refunds.keys())]
+        self.assertEqual(self.query('monthly_net_sales'), expected)
+        for month, count, customers, aov, rate in self.query('monthly_order_activity'):
+            self.assertEqual((count, customers), (order_counts[month], len(active[month])))
+            self.assertAlmostEqual(aov, sales[month] / (100 * count), delta=0.00501)
+            self.assertAlmostEqual(rate, 100 * discounts[month] / gross[month], delta=0.00501)
+        expected_repeat = [(cid, name, frequency[cid])
+                           for cid, name in self.db.execute('SELECT customer_id, display_name FROM customer')
+                           if frequency[cid] >= 2]
+        expected_repeat.sort(key=lambda row: (-row[2], row[0]))
+        self.assertEqual(self.query('repeat_customers'), expected_repeat)
+        for pid, _, units, returns, rate in self.query('product_return_rates'):
+            self.assertEqual((units, returns), (sold[pid], returned[pid]))
+            self.assertEqual(rate, round(100 * returned[pid] / sold[pid], 2) if sold[pid] else None)
+        self.assertEqual(self.db.execute('PRAGMA foreign_key_check').fetchall(), [])
+
+    def test_scenario_coverage_and_documented_highlights(self):
+        self.assertEqual([self.db.execute('SELECT COUNT(*) FROM ' + table).fetchone()[0]
+                          for table in ['customer', 'product', 'orders', 'order_item', 'return_item']],
+                         [24, 13, 167, 410, 53])
+        monthly = self.query('monthly_net_sales')
+        self.assertEqual([row[0] for row in monthly], [f'2024-{month:02}' for month in range(1, 13)])
+        self.assertEqual(max(monthly, key=lambda row: row[3]), ('2024-12', 8429.5, 1094.5, 7335.0))
+        self.assertEqual(self.query('monthly_order_activity')[10], ('2024-11', 20, 13, 293.25, 15.31))
+        self.assertEqual(len(self.query('repeat_customers')), 21)
+        self.assertEqual(self.query('repeat_customers')[0], (2, 'Demo Customer 02', 19))
+        self.assertEqual(self.query('product_return_rates')[8], (9, 'Running shoes', 43, 10, 23.26))
+        self.assertTrue(self.db.execute('SELECT order_item_id FROM return_item GROUP BY order_item_id HAVING COUNT(*) > 1').fetchall())
+
+    def test_order_activity_includes_empty_order_headers(self):
+        self.db.execute("INSERT INTO orders VALUES (999, 1, 1, '2025-01-01')")
+        self.assertEqual(self.query('monthly_order_activity')[-1], ('2025-01', 1, 1, 0.0, None))
 
 
 if __name__ == '__main__':
