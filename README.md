@@ -90,5 +90,3 @@ Ten related tables separate customers and products from transactions. Sale lines
 | [GitHub Actions](.github/workflows/test.yml) | Runs the test suite and demo on pushes and pull requests |
 
 Educational scope: a single-currency retail database, without inventory, payment processing, or a storefront. Detailed assumptions and limitations are in the [design notes](docs/design.md).
-
-No open-source license is granted in this repository; public visibility alone does not grant reuse rights.
