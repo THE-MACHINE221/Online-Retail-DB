@@ -1,8 +1,10 @@
 # Online Retail Database
 
-A relational database for a retail business, with SQL reports for monthly sales, customer purchasing activity, discounts, and product returns.
+[![SQL checks](https://github.com/THE-MACHINE221/Online-Retail-DB/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/THE-MACHINE221/Online-Retail-DB/actions/workflows/test.yml)
 
-Developed by **Mohammad Alseadoon and Khalid Alsaab** for the university **IT Database** class. This repository presents a polished edition of the coursework project, with a runnable database, documented design decisions, and automated tests.
+A retail database with SQL reports for sales, customer purchasing activity, discounts, and returns.
+
+Developed by **Mohammad Alseadoon and Khalid Alsaab** for our university **IT Database** class.
 
 **SQLite · SQL · Python · GitHub Actions**
 
@@ -17,28 +19,48 @@ python3 demo.py
 python3 -m unittest discover -s tests -v
 ```
 
-The demo creates an isolated in-memory database, loads the dataset, and prints four analytical reports. Each run starts fresh and leaves no database file on disk.
+Each run builds a fresh in-memory database and prints four reports. No database file is saved.
 
-## Dataset
+## Output preview
 
-A fixed, entirely synthetic retail scenario covering **January–December 2024**:
+Selected rows from `python3 demo.py`; the full output includes all twelve months, every product, and repeat customers. Monetary amounts are in SAR; return rates are percentages.
+
+```text
+Monthly Net Sales
+month   | sales_sar | refunds_sar | net_sales_sar
+--------+-----------+-------------+--------------
+2024-10 | 4609.00   | 427.50      | 4181.50
+2024-11 | 5865.00   | 950.00      | 4915.00
+2024-12 | 8429.50   | 1094.50     | 7335.00
+
+Product Return Rates
+product_id | product_name      | units_sold | units_returned | return_rate_pct
+-----------+-------------------+------------+----------------+----------------
+9          | Running shoes     | 43         | 10             | 23.26
+11         | Cotton socks pack | 33         | 0              | 0.00
+13         | Weekend duffel    | 0          | 0              | N/A
+```
+
+`N/A` indicates an undefined return rate for a product with no sales.
+
+## Dataset and reports
+
+Entirely synthetic transactions covering **January–December 2024**, across clothing, accessories, and footwear.
 
 | Customers | Products | Orders | Sale lines | Return events |
 |---:|---:|---:|---:|---:|
 | 24 | 13 | 167 | 410 | 53 |
 
-The catalogue spans clothing, accessories, and footwear. Transactions include multi-item baskets, one-time and repeat customers, per-unit discounts, returns in later months, multiple partial returns, and an unsold product. November includes a promotion scenario. All customer labels and transactions are fictional.
+The data includes multi-item baskets, one-time and repeat customers, discounts, partial returns, and an unsold product. All records are fictional; results demonstrate the queries rather than real business performance.
 
-## Analytics highlights
+| Report | What it answers |
+|---|---|
+| [Monthly net sales](sql/analytics/monthly_net_sales.sql) | How much remains after discounts and refunds? |
+| [Monthly order activity](sql/analytics/monthly_order_activity.sql) | How do order volume, basket value, and discount rates vary? |
+| [Product return rates](sql/analytics/product_return_rates.sql) | What share of each product's purchased units was returned? |
+| [Repeat customers](sql/analytics/repeat_customers.sql) | Which customers placed more than one order? |
 
-| Question | Report | Example from the dataset |
-|---|---|---|
-| How do sales and refunds vary by month? | [Monthly net sales](sql/analytics/monthly_net_sales.sql) | December has the highest net sales: SAR 7,335.00 |
-| How do order volume, basket value, and discounts vary? | [Monthly order activity](sql/analytics/monthly_order_activity.sql) | November: 20 orders, SAR 293.25 average order value, 15.31% weighted discount rate |
-| Which products have higher unit return rates? | [Product return rates](sql/analytics/product_return_rates.sql) | Running shoes: 10 of 43 units returned (23.26%); cotton socks: 0 of 33 |
-| Which customers buy more than once? | [Repeat customers](sql/analytics/repeat_customers.sql) | 21 repeat customers; the most frequent placed 19 orders |
-
-These are observations within a designed learning dataset, not findings about an actual business. See [metric definitions and interpretation](docs/analytics.md) for full monthly results and analytical limitations.
+See [metric definitions and results](docs/analytics.md) for calculations and interpretation.
 
 ## Data model
 
@@ -55,36 +77,18 @@ erDiagram
     order_item ||--o{ return_item : returned_as
 ```
 
-Ten tables separate customer and catalogue information from purchases and returns. Each sale line stores the unit price and discount at purchase time. Each return references the purchased line, preserving the correct refund amount even if catalogue prices change.
+Ten related tables separate customers and products from transactions. Sale lines retain purchase-time prices and discounts; returns reference the specific purchased line. See [design decisions and scope](docs/design.md) for integrity rules and tradeoffs.
 
-Money is stored as integer halalas. Constraints and triggers reject invalid values, impossible return dates, and returns exceeding purchased quantities. Views centralize sale and refund calculations; analytical queries aggregate at the correct level to avoid duplicated totals.
+## Explore the code
 
-## Repository guide
-
-| Path | Purpose |
+| Location | Purpose |
 |---|---|
-| `sql/01_schema.sql` | Tables, constraints, indexes, and triggers |
-| `sql/02_seed.sql` | Full-year synthetic retail dataset |
-| `sql/03_views.sql` | Reusable sale and refund views |
-| `sql/analytics/` | Four analytical SQL reports |
-| `demo.py` | Database setup and formatted report runner |
-| `tests/test_database.py` | Focused integrity checks and full-dataset reconciliation |
-| `tests/fixture.sql` | Small, hand-checkable dataset for boundary tests |
-| `docs/design.md` | Relationships, tradeoffs, and integrity rules |
-| `docs/analytics.md` | Metric definitions, results, and interpretation |
-| `.github/workflows/test.yml` | Runs the tests and demo on pushes and pull requests |
+| [Schema](sql/01_schema.sql), [seed](sql/02_seed.sql), [views](sql/03_views.sql) | Database setup and reusable calculations |
+| [Analytics](sql/analytics/) | Four SQL reports |
+| [Demo runner](demo.py) | Builds the database and formats report output |
+| [Tests](tests/test_database.py) | Calculation, integrity, and dataset checks using a [small fixture](tests/fixture.sql) and the full seed |
+| [GitHub Actions](.github/workflows/test.yml) | Runs the test suite and demo on pushes and pull requests |
 
-## Testing
-
-Tests check known financial results, historical price stability, partial-return limits, invalid dates and values, foreign keys, immutable transaction records, and undefined return rates. Full-dataset checks independently reconcile the SQL reports with calculations over the underlying records. GitHub Actions runs the suite and demo in a fresh environment.
-
-## Scope
-
-Educational retail database using SAR. Tax, shipping, inventory, product variants, payment processing, authentication, and cancellation workflows are outside scope. Returns refund the original discounted unit price. This dataset is for demonstrating behavior rather than benchmarking production scale. See [design decisions](docs/design.md).
-
-## Contributors
-
-**Mohammad Alseadoon · Khalid Alsaab**  
-University IT Database class project.
+Educational scope: a single-currency retail database, without inventory, payment processing, or a storefront. Detailed assumptions and limitations are in the [design notes](docs/design.md).
 
 No open-source license is granted in this repository; public visibility alone does not grant reuse rights.
