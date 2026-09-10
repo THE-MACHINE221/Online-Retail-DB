@@ -27,7 +27,7 @@ Orders can contain multiple lines for the same product. An empty order header is
 
 ## Return rules
 
-Positive integer quantities are required. Cumulative returns cannot exceed the original line quantity. Return dates cannot precede purchase dates. Foreign keys reject returns for missing lines. Returns and sale lines are immutable; order headers cannot be updated. These choices simplify history preservation and are not a complete accounting correction system. A production system would need explicit reversal/adjustment events and access controls.
+Positive integer quantities are required. Cumulative returns cannot exceed the original line quantity. Return dates cannot precede purchase dates. Foreign keys reject returns for missing lines. Returns and sale lines are immutable; order headers cannot be updated. Insert guards also reject reused transaction IDs, including `INSERT OR REPLACE`, so replacement cannot overwrite this history. These choices simplify history preservation and are not a complete accounting correction system. A production system would need explicit reversal/adjustment events and access controls.
 
 ## Normalization
 
@@ -37,7 +37,7 @@ Customer, product classification, and payment-method labels are separated from t
 
 The main seed contains 167 orders and 410 sale lines across twelve months. It is a fixed synthetic scenario with varied order frequency, baskets, discounts, and return behavior. It includes 24 fictional customers, 13 products (one unsold), and 53 return events. Its patterns were designed for analytical exploration and cannot establish real-world customer behavior or promotional effectiveness.
 
-Tests use a separate, minimal fixture for transparent expected values and boundary cases. Additional integration checks run the full seed and independently reconcile monthly sales, refunds, purchasing activity, repeat customers, and product return rates. The small test fixture is never used by the default demo.
+Seven focused tests use a separate, minimal fixture with expected values that can be calculated by hand. They cover sales and refunds, multi-item order counts, historical prices, partial-return limits, invalid records, unsold products, and history protection. Complete expected report rows catch missing or duplicated results in the fixture. Each test starts with a fresh database. The demo uses the full-year seed; CI runs it as a setup/execution check, without asserting every full-dataset result.
 
 ## Deliberate limits
 

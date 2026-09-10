@@ -50,4 +50,4 @@ Sales and returns are aggregated separately before joining, preventing multiple 
 
 ## Validation
 
-Focused tests use a small independent fixture with amounts that can be checked by hand. Full-dataset tests recalculate the report totals in Python from raw transaction records and verify the documented highlights. The demo always uses the full-year seed.
+Seven focused tests use a small fixture with amounts that can be checked by hand. Tests compare complete expected report rows and exercise invalid records and return boundaries. The demo always uses the full-year seed; GitHub Actions runs it to check setup and report execution. The full-year highlights above are illustrative results, not hard-coded test expectations.
