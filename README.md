@@ -86,7 +86,7 @@ Ten related tables separate customers and products from transactions. Sale lines
 | [Schema](sql/01_schema.sql), [seed](sql/02_seed.sql), [views](sql/03_views.sql) | Database setup and reusable calculations |
 | [Analytics](sql/analytics/) | Four SQL reports |
 | [Demo runner](demo.py) | Builds the database and formats report output |
-| [Tests](tests/test_database.py) | Calculation, integrity, and dataset checks using a [small fixture](tests/fixture.sql) and the full seed |
+| [Tests](tests/test_database.py) | Seven focused tests using a [small, hand-checkable fixture](tests/fixture.sql) |
 | [GitHub Actions](.github/workflows/test.yml) | Runs the test suite and demo on pushes and pull requests |
 
 Educational scope: a single-currency retail database, without inventory, payment processing, or a storefront. Detailed assumptions and limitations are in the [design notes](docs/design.md).
