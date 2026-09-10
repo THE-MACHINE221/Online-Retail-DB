@@ -17,13 +17,13 @@
 
 Orders can contain multiple lines for the same product. An empty order header is allowed by the schema; a checkout workflow ensuring at least one line is outside this demo. The customer address is current profile data, not a historical shipping address. Geography must not be interpreted as purchase-time shipping geography.
 
-## Changes from the source
+## Design choices
 
-1. **Order headers and items:** the original order row referred to a single product. Separate tables represent baskets without repeating customer and order-level information on every line.
-2. **Return lineage:** the original return linked to customer and product but not the purchase. Returns now reference an order item; customer and product are derived through that relationship.
-3. **Historical money:** current catalogue prices can change. Unit price and per-unit discount are captured at sale time, and money uses integer halalas (100 = SAR 1). Keeping a historical transaction price is intentional, not accidental duplication of current catalogue price.
-4. **Sizing:** the original category-level size table could pair incompatible products and sizes. It is removed from this bounded revision; a future variant model should attach an actual size/colour combination to a product.
-5. **Executable queries:** identifiers are consistently snake_case; the revision replaces inconsistent source query identifiers and Oracle-specific functions with SQLite syntax.
+1. **Orders and items:** separate headers and lines support multi-product baskets without repeating customer and order-level information on every line.
+2. **Purchase-linked returns:** each return references an order item. Its customer, product, and refund price are derived through that purchase relationship.
+3. **Historical money:** unit price and per-unit discount are captured at sale time. Money uses integer halalas (100 = SAR 1), preserving exact underlying arithmetic. A transaction price describes the sale; the catalogue price describes the product today.
+4. **Product scope:** the catalogue models products without size/colour variants. A variant model would be needed to track individual sellable combinations.
+5. **SQLite:** a standard-library Python runner makes setup reproducible without an external server. SQL files use consistent snake_case identifiers.
 
 ## Return rules
 
@@ -33,6 +33,12 @@ Positive integer quantities are required. Cumulative returns cannot exceed the o
 
 Customer, product classification, and payment-method labels are separated from transactions. The schema uses primary keys for entity identity and foreign keys for relationships. This project does not claim that normalization automatically improves every query: it reduces particular forms of redundancy, while analytical joins have their own costs. Historical prices are facts of the sale, not functions of the product's current price.
 
+## Dataset and testing
+
+The main seed contains 167 orders and 410 sale lines across twelve months. It is a fixed synthetic scenario with varied order frequency, baskets, discounts, and return behavior. It includes 24 fictional customers, 13 products (one unsold), and 53 return events. Its patterns were designed for analytical exploration and cannot establish real-world customer behavior or promotional effectiveness.
+
+Tests use a separate, minimal fixture for transparent expected values and boundary cases. Additional integration checks run the full seed and independently reconcile monthly sales, refunds, purchasing activity, repeat customers, and product return rates. The small test fixture is never used by the default demo.
+
 ## Deliberate limits
 
-SQLite is used for accessibility and repeatability. This is a new implementation informed by the original project, not a tested Oracle migration. Only the SQLite revision is executed by the included tests. The original documents and their personal identifiers are not republished. Indexes support common lookups, but no large-scale benchmark or production-readiness claim is made.
+Single currency (SAR), with no tax, shipping, inventory, payment processing, authentication, or cancellation workflow. Refunds equal the original discounted price per returned unit. Product variants and historical shipping addresses are outside scope. Indexes support common lookups, but the dataset is not a large-scale benchmark. Foreign-key enforcement must be enabled on every SQLite connection; the runner does this explicitly.

@@ -1,12 +1,14 @@
 # Online Retail Database
 
-Relational modeling and SQL analytics for a small retail business: customers, product categories, multi-item orders, discounts, and partial returns.
+A relational database for a retail business, with SQL reports for monthly sales, customer purchasing activity, discounts, and product returns.
 
-This is a **portfolio revision of a 2024 university database project**, originally developed by **Mohammad Alseadoon and Khalid Alsaab**. The original used Oracle-style SQL. This runnable revision uses SQLite, revises the transaction model, and includes a new, entirely synthetic dataset. It is an educational database project, not a production retail system or an employer case study.
+Developed by **Mohammad Alseadoon and Khalid Alsaab** for the university **IT Database** class. This repository presents a polished edition of the coursework project, with a runnable database, documented design decisions, and automated tests.
 
-## Run in under a minute
+**SQLite · SQL · Python · GitHub Actions**
 
-Requires Python 3.9+ with its standard-library SQLite module. No packages, account, or database server required.
+## Run the project
+
+Requires Python 3.9+ with its standard-library SQLite module. No extra packages or database server required.
 
 ```bash
 git clone https://github.com/THE-MACHINE221/Online-Retail-DB.git
@@ -15,17 +17,28 @@ python3 demo.py
 python3 -m unittest discover -s tests -v
 ```
 
-The demo builds an isolated in-memory database each time and runs all analytical SQL files. It does not create or overwrite a database on disk.
+The demo creates an isolated in-memory database, loads the dataset, and prints four analytical reports. Each run starts fresh and leaves no database file on disk.
 
-## Business questions
+## Dataset
 
-| Question | SQL | Result from the synthetic fixture |
+A fixed, entirely synthetic retail scenario covering **January–December 2024**:
+
+| Customers | Products | Orders | Sale lines | Return events |
+|---:|---:|---:|---:|---:|
+| 24 | 13 | 167 | 410 | 53 |
+
+The catalogue spans clothing, accessories, and footwear. Transactions include multi-item baskets, one-time and repeat customers, per-unit discounts, returns in later months, multiple partial returns, and an unsold product. November includes a promotion scenario. All customer labels and transactions are fictional.
+
+## Analytics highlights
+
+| Question | Report | Example from the dataset |
 |---|---|---|
-| How much did we sell after discounts and refunds each month? | [Monthly net sales](sql/analytics/monthly_net_sales.sql) | January: SAR 270; February: SAR 75 |
-| Which customers placed more than one order? | [Repeat customers](sql/analytics/repeat_customers.sql) | Demo Customer 01: 2 orders |
-| What share of purchased units was returned for each product? | [Product return rates](sql/analytics/product_return_rates.sql) | Shirts: 33.33%; trousers: 33.33%; bags: 0% |
+| How do sales and refunds vary by month? | [Monthly net sales](sql/analytics/monthly_net_sales.sql) | December has the highest net sales: SAR 7,335.00 |
+| How do order volume, basket value, and discounts vary? | [Monthly order activity](sql/analytics/monthly_order_activity.sql) | November: 20 orders, SAR 293.25 average order value, 15.31% weighted discount rate |
+| Which products have higher unit return rates? | [Product return rates](sql/analytics/product_return_rates.sql) | Running shoes: 10 of 43 units returned (23.26%); cotton socks: 0 of 33 |
+| Which customers buy more than once? | [Repeat customers](sql/analytics/repeat_customers.sql) | 21 repeat customers; the most frequent placed 19 orders |
 
-These results demonstrate query behavior on a deliberately small fixture; they are not business findings. See [metric definitions and expected output](docs/analytics.md).
+These are observations within a designed learning dataset, not findings about an actual business. See [metric definitions and interpretation](docs/analytics.md) for full monthly results and analytical limitations.
 
 ## Data model
 
@@ -42,42 +55,36 @@ erDiagram
     order_item ||--o{ return_item : returned_as
 ```
 
-The schema has ten tables. Each order item records its own sale-time unit price and discount. Each return references a specific purchased line, allowing multiple partial returns without losing the original purchase context.
+Ten tables separate customer and catalogue information from purchases and returns. Each sale line stores the unit price and discount at purchase time. Each return references the purchased line, preserving the correct refund amount even if catalogue prices change.
 
-## What this demonstrates
-
-- Relational keys, referential integrity, constraints, and database triggers.
-- Clear row-level meaning: one order header, one purchased line, one return event.
-- SQL joins, views, CTEs, aggregations, and protection against duplicated totals.
-- Historical prices that remain stable when the product catalogue changes.
-- Reproducible setup and automated checks for financial calculations and invalid data.
-
-## Original project and revision
-
-The original project covered customers, territories, addresses, categories, subcategories, products, sizes, payment methods, orders, and returns, with DDL, DML, views, and normalization documentation. The [historical source section](original/README.md) preserves its schema, five views, and diagrams separately from the runnable revision.
-
-This revision separates orders from their items, links returns to purchased items, stores money as integer halalas, and replaces the original sample data with synthetic records. Category-level sizing was omitted because it did not establish a valid product/size relationship; product variants are a future extension. See [design decisions](docs/design.md) for tradeoffs and limitations.
+Money is stored as integer halalas. Constraints and triggers reject invalid values, impossible return dates, and returns exceeding purchased quantities. Views centralize sale and refund calculations; analytical queries aggregate at the correct level to avoid duplicated totals.
 
 ## Repository guide
 
 | Path | Purpose |
 |---|---|
-| `sql/01_schema.sql` | Tables, integrity rules, indexes, and triggers |
-| `sql/02_seed.sql` | Small synthetic fixture |
-| `sql/03_views.sql` | Reusable sale and refund line views |
-| `sql/analytics/` | Three standalone analytical queries |
-| `demo.py` | Standard-library demo runner |
-| `tests/` | Automated behavior and integrity checks |
-| `docs/` | Design rationale and metric definitions |
-| `original/` | Historical Oracle-style schema, views, diagrams, and source coverage |
+| `sql/01_schema.sql` | Tables, constraints, indexes, and triggers |
+| `sql/02_seed.sql` | Full-year synthetic retail dataset |
+| `sql/03_views.sql` | Reusable sale and refund views |
+| `sql/analytics/` | Four analytical SQL reports |
+| `demo.py` | Database setup and formatted report runner |
+| `tests/test_database.py` | Focused integrity checks and full-dataset reconciliation |
+| `tests/fixture.sql` | Small, hand-checkable dataset for boundary tests |
+| `docs/design.md` | Relationships, tradeoffs, and integrity rules |
+| `docs/analytics.md` | Metric definitions, results, and interpretation |
+| `.github/workflows/test.yml` | Runs the tests and demo on pushes and pull requests |
 
-## Scope and limitations
+## Testing
 
-Single currency (SAR); no tax, shipping, inventory, payment processing, authentication, cancellation workflow, or production deployment. Returns are assumed to refund the original discounted unit price in full. Historical transaction records are immutable in this demo. The small dataset does not establish performance at scale. SQLite foreign-key enforcement must be enabled on every connection; the runner does so explicitly.
+Tests check known financial results, historical price stability, partial-return limits, invalid dates and values, foreign keys, immutable transaction records, and undefined return rates. Full-dataset checks independently reconcile the SQL reports with calculations over the underlying records. GitHub Actions runs the suite and demo in a fresh environment.
 
-## Credits
+## Scope
 
-- **Original project contributors:** Mohammad Alseadoon and Khalid Alsaab.
-- **Portfolio revision:** prepared for Mohammad Alseadoon with AI assistance for restructuring, SQL implementation, documentation, and tests. The revision should not be attributed to the original team as work completed in 2024.
+Educational retail database using SAR. Tax, shipping, inventory, product variants, payment processing, authentication, and cancellation workflows are outside scope. Returns refund the original discounted unit price. This dataset is for demonstrating behavior rather than benchmarking production scale. See [design decisions](docs/design.md).
 
-No student IDs, original reports, personal contact details, or employer data are included. No open-source license is granted in this repository; public visibility alone does not grant reuse rights.
+## Contributors
+
+**Mohammad Alseadoon · Khalid Alsaab**  
+University IT Database class project.
+
+No open-source license is granted in this repository; public visibility alone does not grant reuse rights.
