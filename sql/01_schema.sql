@@ -83,3 +83,15 @@ CREATE TRIGGER immutable_order_item_delete BEFORE DELETE ON order_item
 BEGIN SELECT RAISE(ABORT, 'sale items are immutable'); END;
 CREATE TRIGGER immutable_order_update BEFORE UPDATE ON orders
 BEGIN SELECT RAISE(ABORT, 'orders are immutable'); END;
+
+-- REPLACE can delete/reinsert a row without running ordinary update triggers.
+-- Reject reused transaction IDs before conflict resolution can replace history.
+CREATE TRIGGER immutable_order_replace BEFORE INSERT ON orders
+WHEN EXISTS (SELECT 1 FROM orders WHERE order_id = NEW.order_id)
+BEGIN SELECT RAISE(ABORT, 'orders are immutable'); END;
+CREATE TRIGGER immutable_order_item_replace BEFORE INSERT ON order_item
+WHEN EXISTS (SELECT 1 FROM order_item WHERE order_item_id = NEW.order_item_id)
+BEGIN SELECT RAISE(ABORT, 'sale items are immutable'); END;
+CREATE TRIGGER immutable_return_replace BEFORE INSERT ON return_item
+WHEN EXISTS (SELECT 1 FROM return_item WHERE return_id = NEW.return_id)
+BEGIN SELECT RAISE(ABORT, 'return records are append-only'); END;
