@@ -20,6 +20,6 @@ SELECT
     COALESCE(r.units_returned, 0) AS units_returned,
     ROUND(100.0 * COALESCE(r.units_returned, 0) / NULLIF(s.units_sold, 0), 2) AS return_rate_pct
 FROM product p 
-LEFT JOIN sold s USING(product_id) 
-LEFT JOIN returned r USING(product_id)
+    LEFT JOIN sold s USING(product_id) 
+    LEFT JOIN returned r USING(product_id)
 ORDER BY p.product_id;
