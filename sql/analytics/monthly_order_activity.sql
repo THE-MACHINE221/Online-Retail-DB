@@ -25,5 +25,5 @@ SELECT
     ROUND(COALESCE(s.sales, 0) / (100.0 * a.order_count), 2) AS average_order_value_sar,
     ROUND(100.0 * COALESCE(s.discounts, 0) / NULLIF(s.gross, 0), 2) AS discount_rate_pct
 FROM activity a 
-LEFT JOIN sales s USING(month)
+    LEFT JOIN sales s USING(month)
 ORDER BY a.month;
