@@ -1,4 +1,8 @@
+-- Enable foreign keys whenever opening this database.
 PRAGMA foreign_keys = ON;
+
+-- Money is stored in whole halalas: 100 halalas = 1 SAR.
+-- typeof checks ensure SQLite stores quantities and money as integers.
 
 CREATE TABLE territory (
     territory_id INTEGER PRIMARY KEY,
@@ -40,7 +44,12 @@ CREATE TABLE orders (
     order_id INTEGER PRIMARY KEY,
     customer_id INTEGER NOT NULL REFERENCES customer,
     payment_method_id INTEGER NOT NULL REFERENCES payment_method,
-    order_date TEXT NOT NULL CHECK(length(order_date) = 10 AND date(order_date, '+0 days') IS NOT NULL AND date(order_date, '+0 days') = order_date)
+    -- SQLite stores dates as text. Require a real date in YYYY-MM-DD format.
+    order_date TEXT NOT NULL CHECK (
+        length(order_date) = 10
+        AND date(order_date, '+0 days') IS NOT NULL
+        AND date(order_date, '+0 days') = order_date
+    )
 );
 CREATE TABLE order_item (
     order_item_id INTEGER PRIMARY KEY,
@@ -53,45 +62,10 @@ CREATE TABLE order_item (
 CREATE TABLE return_item (
     return_id INTEGER PRIMARY KEY,
     order_item_id INTEGER NOT NULL REFERENCES order_item,
-    return_date TEXT NOT NULL CHECK(length(return_date) = 10 AND date(return_date, '+0 days') IS NOT NULL AND date(return_date, '+0 days') = return_date),
+    return_date TEXT NOT NULL CHECK (
+        length(return_date) = 10
+        AND date(return_date, '+0 days') IS NOT NULL
+        AND date(return_date, '+0 days') = return_date
+    ),
     quantity INTEGER NOT NULL CHECK(typeof(quantity) = 'integer' AND quantity > 0)
 );
-CREATE INDEX idx_orders_customer_date ON orders(customer_id, order_date);
-CREATE INDEX idx_items_order ON order_item(order_id);
-CREATE INDEX idx_items_product ON order_item(product_id);
-CREATE INDEX idx_returns_item ON return_item(order_item_id);
-
--- Return records are append-only. Corrections require a deliberate rebuild in this demo.
-CREATE TRIGGER validate_return BEFORE INSERT ON return_item
-BEGIN
-    SELECT CASE WHEN NEW.return_date < (
-        SELECT o.order_date FROM orders o JOIN order_item i USING(order_id)
-        WHERE i.order_item_id = NEW.order_item_id
-    ) THEN RAISE(ABORT, 'return precedes purchase') END;
-    SELECT CASE WHEN NEW.quantity + COALESCE((
-        SELECT SUM(quantity) FROM return_item WHERE order_item_id = NEW.order_item_id
-    ), 0) > (SELECT quantity FROM order_item WHERE order_item_id = NEW.order_item_id)
-    THEN RAISE(ABORT, 'returned quantity exceeds purchased quantity') END;
-END;
-CREATE TRIGGER immutable_return_update BEFORE UPDATE ON return_item
-BEGIN SELECT RAISE(ABORT, 'return records are append-only'); END;
-CREATE TRIGGER immutable_return_delete BEFORE DELETE ON return_item
-BEGIN SELECT RAISE(ABORT, 'return records are append-only'); END;
-CREATE TRIGGER immutable_order_item_update BEFORE UPDATE ON order_item
-BEGIN SELECT RAISE(ABORT, 'sale items are immutable'); END;
-CREATE TRIGGER immutable_order_item_delete BEFORE DELETE ON order_item
-BEGIN SELECT RAISE(ABORT, 'sale items are immutable'); END;
-CREATE TRIGGER immutable_order_update BEFORE UPDATE ON orders
-BEGIN SELECT RAISE(ABORT, 'orders are immutable'); END;
-
--- REPLACE can delete/reinsert a row without running ordinary update triggers.
--- Reject reused transaction IDs before conflict resolution can replace history.
-CREATE TRIGGER immutable_order_replace BEFORE INSERT ON orders
-WHEN EXISTS (SELECT 1 FROM orders WHERE order_id = NEW.order_id)
-BEGIN SELECT RAISE(ABORT, 'orders are immutable'); END;
-CREATE TRIGGER immutable_order_item_replace BEFORE INSERT ON order_item
-WHEN EXISTS (SELECT 1 FROM order_item WHERE order_item_id = NEW.order_item_id)
-BEGIN SELECT RAISE(ABORT, 'sale items are immutable'); END;
-CREATE TRIGGER immutable_return_replace BEFORE INSERT ON return_item
-WHEN EXISTS (SELECT 1 FROM return_item WHERE return_id = NEW.return_id)
-BEGIN SELECT RAISE(ABORT, 'return records are append-only'); END;

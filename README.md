@@ -1,68 +1,26 @@
 # Online Retail Database
 
-[![SQL checks](https://github.com/THE-MACHINE221/Online-Retail-DB/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/THE-MACHINE221/Online-Retail-DB/actions/workflows/test.yml)
+A relational database project for a small retail store, with SQL reports for sales, discounts, returns, and repeat customers.
 
-A retail database with SQL reports for sales, customer purchasing activity, discounts, and returns.
+This started as a group project for an IT Database course. The GitHub version uses SQLite and builds on the original design with separate order items, returns linked to purchases, and four sales reports. It focuses on table relationships, constraints, views, and SQL queries.
 
-Developed by **Mohammad Alseadoon and Khalid Alsaab** for our university **IT Database** class.
-
-**SQLite · SQL · Python · GitHub Actions**
+**Tools:** SQL, SQLite, and Python. The database and reports are written in SQL; Python loads the files and prints the results.
 
 ## Run the project
 
-Requires Python 3.9+ with its standard-library SQLite module. No extra packages or database server required.
+You need Python 3.9 or later. No extra packages or database server are required.
 
 ```bash
 git clone https://github.com/THE-MACHINE221/Online-Retail-DB.git
 cd Online-Retail-DB
 python3 demo.py
-python3 -m unittest discover -s tests -v
 ```
 
-Each run builds a fresh in-memory database and prints four reports. No database file is saved.
+Each run creates a temporary database, loads the sample data, and prints all four reports. No database file is saved.
 
-## Output preview
+## Database design
 
-Selected rows from `python3 demo.py`; the full output includes all twelve months, every product, and repeat customers. Monetary amounts are in SAR; return rates are percentages.
-
-```text
-Monthly Net Sales
-month   | sales_sar | refunds_sar | net_sales_sar
---------+-----------+-------------+--------------
-2024-10 | 4609.00   | 427.50      | 4181.50
-2024-11 | 5865.00   | 950.00      | 4915.00
-2024-12 | 8429.50   | 1094.50     | 7335.00
-
-Product Return Rates
-product_id | product_name      | units_sold | units_returned | return_rate_pct
------------+-------------------+------------+----------------+----------------
-9          | Running shoes     | 43         | 10             | 23.26
-11         | Cotton socks pack | 33         | 0              | 0.00
-13         | Weekend duffel    | 0          | 0              | N/A
-```
-
-`N/A` indicates an undefined return rate for a product with no sales.
-
-## Dataset and reports
-
-Entirely synthetic transactions covering **January–December 2024**, across clothing, accessories, and footwear.
-
-| Customers | Products | Orders | Sale lines | Return events |
-|---:|---:|---:|---:|---:|
-| 24 | 13 | 167 | 410 | 53 |
-
-The data includes multi-item baskets, one-time and repeat customers, discounts, partial returns, and an unsold product. All records are fictional; results demonstrate the queries rather than real business performance.
-
-| Report | What it answers |
-|---|---|
-| [Monthly net sales](sql/analytics/monthly_net_sales.sql) | How much remains after discounts and refunds? |
-| [Monthly order activity](sql/analytics/monthly_order_activity.sql) | How do order volume, basket value, and discount rates vary? |
-| [Product return rates](sql/analytics/product_return_rates.sql) | What share of each product's purchased units was returned? |
-| [Repeat customers](sql/analytics/repeat_customers.sql) | Which customers placed more than one order? |
-
-See [metric definitions and results](docs/analytics.md) for calculations and interpretation.
-
-## Data model
+The database has ten tables. Customers place orders, each order contains product items, and each return refers to a purchased item.
 
 ```mermaid
 erDiagram
@@ -77,16 +35,65 @@ erDiagram
     order_item ||--o{ return_item : returned_as
 ```
 
-Ten related tables separate customers and products from transactions. Sale lines retain purchase-time prices and discounts; returns reference the specific purchased line. See [design decisions and scope](docs/design.md) for integrity rules and tradeoffs.
+- **Orders and items are separate:** one order can contain several products.
+- **Sale prices are stored with each item:** changing a product's current price does not change earlier sales reports.
+- **Returns refer to purchased items:** refunds use the price and discount from that purchase.
+- **Amounts use whole halalas:** `5000` means SAR 50.00. Reports divide by 100 to show SAR.
 
-## Explore the code
+See [database notes](docs/design.md) for table descriptions, normalization choices, and data rules. The schema checks keys, quantities, prices, discounts, and valid dates; cross-row return limits remain a documented assumption.
 
-| Location | Purpose |
+## Reports
+
+| SQL file | Result |
 |---|---|
-| [Schema](sql/01_schema.sql), [seed](sql/02_seed.sql), [views](sql/03_views.sql) | Database setup and reusable calculations |
-| [Analytics](sql/analytics/) | Four SQL reports |
-| [Demo runner](demo.py) | Builds the database and formats report output |
-| [Tests](tests/test_database.py) | Seven focused tests using a [small, hand-checkable fixture](tests/fixture.sql) |
-| [GitHub Actions](.github/workflows/test.yml) | Runs the test suite and demo on pushes and pull requests |
+| [Monthly net sales](sql/analytics/monthly_net_sales.sql) | Sales after discounts, refunds, and net sales by month |
+| [Monthly order activity](sql/analytics/monthly_order_activity.sql) | Order counts, customer counts, average order value, and discount percentage |
+| [Product return rates](sql/analytics/product_return_rates.sql) | Units sold, units returned, and return percentage for each product |
+| [Repeat customers](sql/analytics/repeat_customers.sql) | Customers who placed at least two orders |
 
-Educational scope: a single-currency retail database, without inventory, payment processing, or a storefront. Detailed assumptions and limitations are in the [design notes](docs/design.md).
+Example from the monthly net sales report (amounts in SAR):
+
+```text
+month   | sales_sar | refunds_sar | net_sales_sar
+--------+-----------+-------------+--------------
+2024-10 | 4609.00   | 427.50      | 4181.50
+2024-11 | 5865.00   | 950.00      | 4915.00
+2024-12 | 8429.50   | 1094.50     | 7335.00
+```
+
+The [report guide](docs/analytics.md) explains the calculations and SQL used in each report.
+
+## Sample data
+
+The data is fictional and covers January–December 2024:
+
+| Customers | Products | Orders | Order items | Returns |
+|---:|---:|---:|---:|---:|
+| 24 | 13 | 167 | 410 | 53 |
+
+It includes orders with several items, discounts, partial returns, repeat customers, and one product with no sales. Results are examples for practicing SQL, not findings about a real retailer.
+
+## Files
+
+```text
+sql/
+  01_schema.sql     Tables and basic constraints
+  02_seed.sql       Sample data
+  03_views.sql      Shared sales and refund calculations
+  analytics/        Four report queries
+  examples/         Basic insert, select, update, and delete example
+docs/
+  design.md         Tables and design notes
+  analytics.md      Report calculations and SQL notes
+demo.py             Loads the database and prints reports
+```
+
+To read the SQL, start with `01_schema.sql`, then `03_views.sql`. The repeat-customer query is the simplest report to start with.
+
+The [basic operations example](sql/examples/basic_operations.sql) adds, reads, updates, and deletes a sample product. To run it in a SQLite editor, first load `01_schema.sql`, `02_seed.sql`, and `03_views.sql` in that order, then run the example. It ends with `ROLLBACK` to leave the sample database unchanged.
+
+The project covers a single currency (SAR). Inventory, tax, shipping, and payment processing are outside its scope.
+
+## Credits
+
+Original university project: Mohammad Abdulkarim Alseadoon, Khalid Hamad Alsaab, Meshal Mohammed Almutairi, and Saleh Abdullah Alnoshan.

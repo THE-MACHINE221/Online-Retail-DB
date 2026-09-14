@@ -1,44 +1,87 @@
-# Design decisions
+# Database notes
 
-## Row meaning and relationships
+## Tables
 
-| Table | One row represents |
+| Table | Stores |
 |---|---|
-| territory | A city and its regional/country context |
-| address | A synthetic neighborhood in a territory |
-| customer | A synthetic customer with a current address |
-| category | A top-level product group |
-| subcategory | A named group within a category |
-| product | A catalogue product with its current price |
-| payment_method | A payment-method label, not a payment transaction |
-| orders | A customer's purchase date and payment method |
-| order_item | One product line within an order, with quantity and historical price |
-| return_item | A return event against a purchased line |
+| territory | Country, region, and city |
+| address | A neighborhood and its territory |
+| customer | Customer name and current address |
+| category | Main product groups |
+| subcategory | Product groups within a category |
+| product | Product name, subcategory, and current price |
+| payment_method | Payment-method names |
+| orders | Customer, order date, and payment method |
+| order_item | Products in an order, quantities, sale prices, and discounts |
+| return_item | Returned quantities, dates, and the purchased items they refer to |
 
-Orders can contain multiple lines for the same product. An empty order header is allowed by the schema; a checkout workflow ensuring at least one line is outside this demo. The customer address is current profile data, not a historical shipping address. Geography must not be interpreted as purchase-time shipping geography.
+Primary keys identify rows. Foreign keys connect related tables. For example,
+`order_item.order_id` refers to `orders.order_id`.
 
-## Design choices
+## Orders, prices, and returns
 
-1. **Orders and items:** separate headers and lines support multi-product baskets without repeating customer and order-level information on every line.
-2. **Purchase-linked returns:** each return references an order item. Its customer, product, and refund price are derived through that purchase relationship.
-3. **Historical money:** unit price and per-unit discount are captured at sale time. Money uses integer halalas (100 = SAR 1), preserving exact underlying arithmetic. A transaction price describes the sale; the catalogue price describes the product today.
-4. **Product scope:** the catalogue models products without size/colour variants. A variant model would be needed to track individual sellable combinations.
-5. **SQLite:** a standard-library Python runner makes setup reproducible without an external server. SQL files use consistent snake_case identifiers.
+An order can have several items. Keeping the items in a separate table avoids
+repeating the customer and order date for every product in the basket.
 
-## Return rules
+`product.price_halalas` holds the current price. Each order item stores its own
+`unit_price_halalas` and `unit_discount_halalas` from the purchase. A later change
+to the product price therefore leaves earlier sales amounts unchanged.
 
-Positive integer quantities are required. Cumulative returns cannot exceed the original line quantity. Return dates cannot precede purchase dates. Foreign keys reject returns for missing lines. Returns and sale lines are immutable; order headers cannot be updated. Insert guards also reject reused transaction IDs, including `INSERT OR REPLACE`, so replacement cannot overwrite this history. These choices simplify history preservation and are not a complete accounting correction system. A production system would need explicit reversal/adjustment events and access controls.
+A return points to an order item, which identifies the product and its purchase
+price. A partial return can return fewer units than were purchased.
 
-## Normalization
+For example, two shirts priced at SAR 50 each, with a SAR 5 discount per shirt,
+produce SAR 90 in sales. Returning one shirt produces a SAR 45 refund.
 
-Customer, product classification, and payment-method labels are separated from transactions. The schema uses primary keys for entity identity and foreign keys for relationships. This project does not claim that normalization automatically improves every query: it reduces particular forms of redundancy, while analytical joins have their own costs. Historical prices are facts of the sale, not functions of the product's current price.
+Money uses whole halalas: SAR 50 is stored as `5000`. This avoids storing the
+underlying amounts as approximate decimal fractions in SQLite.
 
-## Dataset and testing
+## Rules and assumptions
 
-The main seed contains 167 orders and 410 sale lines across twelve months. It is a fixed synthetic scenario with varied order frequency, baskets, discounts, and return behavior. It includes 24 fictional customers, 13 products (one unsold), and 53 return events. Its patterns were designed for analytical exploration and cannot establish real-world customer behavior or promotional effectiveness.
+The schema enforces primary and foreign keys, required fields, positive whole-number
+quantities, nonnegative whole-number prices, and per-unit discounts between zero
+and the sale price. Date checks require valid dates in `YYYY-MM-DD` format. SQLite's `typeof` checks ensure quantities and money are
+stored as integers. Category and payment-method names are unique; subcategory
+names are unique within a category.
 
-Seven focused tests use a separate, minimal fixture with expected values that can be calculated by hand. They cover sales and refunds, multi-item order counts, historical prices, partial-return limits, invalid records, unsold products, and history protection. Complete expected report rows catch missing or duplicated results in the fixture. Each test starts with a fresh database. The demo uses the full-year seed; CI runs it as a setup/execution check, without asserting every full-dataset result.
+In the sample data, returns occur on or after the purchase date, and total returned
+units do not exceed purchased units. These two rules involve comparing different
+rows and are not automatically enforced. Keep them in mind when editing records.
+The schema validates each date individually, but does not compare purchase and return dates.
 
-## Deliberate limits
+Rows can be updated or deleted subject to foreign keys and the basic constraints.
+An order without items is allowed. Customer addresses represent current profiles.
+Products do not have separate size or colour variants.
 
-Single currency (SAR), with no tax, shipping, inventory, payment processing, authentication, or cancellation workflow. Refunds equal the original discounted price per returned unit. Product variants and historical shipping addresses are outside scope. Indexes support common lookups, but the dataset is not a large-scale benchmark. Foreign-key enforcement must be enabled on every SQLite connection; the runner does this explicitly.
+When opening the SQL in another SQLite tool, enable foreign keys for that connection:
+
+```sql
+PRAGMA foreign_keys = ON;
+```
+
+## Normalization in this design
+
+The tables separate facts to reduce repeated data:
+
+- **First normal form (1NF):** each field holds one value. An order's products
+  are separate item rows, rather than a list stored in one field.
+- **Second normal form (2NF):** item quantity, sale price, and discount belong
+  to the individual order item. Order date and customer belong to the order.
+  The tables use single-column primary keys, so there is no partial dependency
+  on part of a composite primary key.
+- **Third normal form (3NF):** category names are stored in `category`, rather
+  than repeated on every product. Payment-method names are stored separately
+  from orders. Updating one of these names requires changing one row.
+
+These examples explain the main normalization choices; they are not a formal
+proof of every possible dependency. For example, city names are not assumed to
+be unique worldwide. Sale-time prices remain on order items because they describe
+that purchase, independently of the product's current price.
+
+## Changes from the university version
+
+The original project used Oracle-style SQL and included sizes, more customer and
+product details, and a collection of SQL exercises. This version uses SQLite,
+separates orders from their items, links returns to purchases, and focuses on four
+reports. It is an updated version of that project rather than a copy of the original
+submission.

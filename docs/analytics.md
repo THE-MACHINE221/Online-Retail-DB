@@ -1,53 +1,86 @@
-# Analytics guide
+# Report guide
 
-The reports explore a fixed synthetic retail dataset covering January–December 2024: 24 customers, 13 products, 167 orders, 410 sale lines, and 53 return events. Every customer and transaction is fictional. The figures illustrate SQL behavior and analytical interpretation, not real business performance.
-
-## Monthly net sales
-
-**Sales = quantity × (sale-time unit price − per-unit discount).** Refunds use the same discounted unit price multiplied by the returned quantity. **Net sales = sales − refunds.** Sales are dated by purchase; refunds by return. Tax and shipping are excluded.
-
-| Month | Sales after discounts (SAR) | Refunds (SAR) | Net sales (SAR) |
-|---|---:|---:|---:|
-| 2024-01 | 2,072.00 | 210.00 | 1,862.00 |
-| 2024-02 | 3,778.25 | 0.00 | 3,778.25 |
-| 2024-03 | 2,800.00 | 135.00 | 2,665.00 |
-| 2024-04 | 4,234.50 | 323.00 | 3,911.50 |
-| 2024-05 | 4,597.00 | 764.00 | 3,833.00 |
-| 2024-06 | 5,663.00 | 390.00 | 5,273.00 |
-| 2024-07 | 5,341.00 | 895.00 | 4,446.00 |
-| 2024-08 | 2,831.00 | 494.00 | 2,337.00 |
-| 2024-09 | 4,705.00 | 449.00 | 4,256.00 |
-| 2024-10 | 4,609.00 | 427.50 | 4,181.50 |
-| 2024-11 | 5,865.00 | 950.00 | 4,915.00 |
-| 2024-12 | 8,429.50 | 1,094.50 | 7,335.00 |
-
-December has the highest net sales, SAR 7,335.00. July has SAR 5,341.00 in sales but SAR 895.00 in refunds, leaving SAR 4,446.00. Some refunds relate to earlier purchases, so a month's refund-to-sales ratio is not a return rate for that month's purchases.
-
-The query combines sale and refund events with `UNION ALL`, then groups by month. A month with refunds but no sales is retained and may have negative net sales. Months with neither kind of event are omitted.
-
-## Monthly order activity
-
-- **Order count:** number of order headers, not number of purchased lines.
-- **Active customers:** distinct customers with an order in that month.
-- **Average order value:** sales after discounts, before refunds, divided by order count.
-- **Weighted discount rate:** total discount amount divided by gross sales before discounts × 100. This is not a simple average of line-level percentages.
-
-November contains 20 orders from 13 customers, SAR 293.25 average order value, and a 15.31% weighted discount rate. December contains 24 orders with SAR 351.23 average order value. These figures allow comparisons of volume, basket value, and discounting; the synthetic promotion scenario cannot demonstrate that discounts caused a change in demand.
-
-Order headers are counted separately from sale lines to avoid inflating order counts for multi-item baskets. Empty headers count as orders and contribute zero sales; a month with no gross sales has an undefined discount rate.
+All amounts are in SAR. The reports use fictional data for 2024.
 
 ## Repeat customers
 
-A repeat customer has at least two orders across the dataset, regardless of item count or returns. There are 21 repeat customers and three one-time customers. Demo Customer 02 placed the most orders (19).
+[SQL](../sql/analytics/repeat_customers.sql)
 
-This is an all-period purchase-frequency measure. It is not cohort retention, a measure of customer satisfaction, or evidence of future loyalty.
+Join customers to orders, group by customer, and keep customers with at least two
+orders using `HAVING COUNT(*) >= 2`. Count orders rather than order items: buying
+three products in one order is still one purchase.
+
+## Monthly order activity
+
+[SQL](../sql/analytics/monthly_order_activity.sql)
+
+- Order count: distinct order IDs in the month.
+- Active customers: distinct customers with an order in the month.
+- Average order value: sales after discounts, before refunds, divided by orders.
+- Discount percentage: total discounts divided by sales before discounts, times 100.
+
+The query joins orders to the sale-line view. `COUNT(DISTINCT ...)` avoids counting
+an order several times when it has several items. An empty order counts as an order
+with zero sales. Discount percentage is `N/A` when gross sales are zero.
+
+## Monthly net sales
+
+[SQL](../sql/analytics/monthly_net_sales.sql)
+
+```text
+Sale amount = quantity × (unit price − per-unit discount)
+Refund amount = returned quantity × (original unit price − per-unit discount)
+Net sales = sales − refunds
+```
+
+Sales belong to the purchase month; refunds belong to the return month. A January
+purchase returned in February adds sales to January and a refund to February.
+
+The query combines sales and refunds with `UNION ALL`, then adds up each month.
+A month with only refunds appears with negative net sales. Months with neither
+sales nor refunds are omitted.
 
 ## Product return rates
 
-**Returned units / purchased units × 100**, across the whole dataset. Running shoes have 10 of 43 units returned (23.26%); cotton socks have 0 of 33 (0%). The weekend duffel has no sales, so its return rate is `NULL`, displayed as `N/A` by the demo.
+[SQL](../sql/analytics/product_return_rates.sql)
 
-Sales and returns are aggregated separately before joining, preventing multiple return events from duplicating purchased quantities. This is a unit return rate, not the percentage of orders returned. Differences invite investigation but do not establish a cause such as product quality or sizing. The fixed observation window also limits follow-up for late-year purchases.
+```text
+Return rate (%) = returned units / sold units × 100
+```
 
-## Validation
+Sales and returns are added up separately for each product before they are joined.
+Otherwise, two return rows for one purchased item could count the sale twice.
 
-Seven focused tests use a small fixture with amounts that can be checked by hand. Tests compare complete expected report rows and exercise invalid records and return boundaries. The demo always uses the full-year seed; GitHub Actions runs it to check setup and report execution. The full-year highlights above are illustrative results, not hard-coded test expectations.
+For example, the sample data has 43 running shoes sold and 10 returned:
+`10 / 43 × 100 = 23.26%`. The unsold weekend duffel has an undefined return rate,
+shown as `N/A`, while a sold product with no returns has a rate of `0%`.
+
+## SQL used in the reports
+
+| Expression | Purpose here |
+|---|---|
+| `JOIN ... ON ...` | Match related rows using their IDs |
+| `LEFT JOIN` | Keep the left-hand row even when there is no match |
+| `GROUP BY` | Collect rows so their values can be counted or added up |
+| `HAVING` | Filter groups after counting them |
+| `WITH name AS (...)` | Give an intermediate query a name for use in the main query |
+| `UNION ALL` | Append one query's rows to another without removing duplicates |
+| `substr(date, 1, 7)` | Extract `YYYY-MM` from a date |
+| `COALESCE(value, 0)` | Use zero when a joined total is missing (`NULL`) |
+| `NULLIF(value, 0)` | Return `NULL` for zero, so a rate with a zero denominator is undefined |
+| `ROUND(value, 2)` | Round a report value to two decimal places |
+
+## A small manual check
+
+Open `02_seed.sql` and choose an order. For each of its items, multiply quantity
+by price minus discount, then divide by 100 to get SAR. Compare with:
+
+```sql
+SELECT order_id, SUM(sales_halalas) / 100.0 AS sales_sar
+FROM sale_line
+WHERE order_id = 1
+GROUP BY order_id;
+```
+
+Run this after loading the schema, seed, and views in SQLite. It is a way to follow
+the calculation using the same data as the reports.

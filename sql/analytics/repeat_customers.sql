@@ -1,10 +1,10 @@
--- Order counts come from order headers, avoiding inflation from multi-item baskets.
-SELECT 
-  c.customer_id, 
-  c.display_name, 
-  COUNT(*) AS order_count
-FROM customer c 
-  JOIN orders o USING(customer_id)
-GROUP BY c.customer_id, c.display_name 
-  HAVING COUNT(*) >= 2
-ORDER BY order_count DESC, c.customer_id;
+-- A repeat customer has placed at least two orders.
+SELECT
+    customer.customer_id,
+    customer.display_name,
+    COUNT(*) AS order_count
+FROM customer
+JOIN orders ON customer.customer_id = orders.customer_id
+GROUP BY customer.customer_id, customer.display_name
+HAVING COUNT(*) >= 2
+ORDER BY order_count DESC, customer.customer_id;
