@@ -4,7 +4,10 @@ A relational database project for a small retail store, with SQL reports for sal
 
 This started as a group project for an IT Database course. The GitHub version uses SQLite and builds on the original design with separate order items, returns linked to purchases, and four sales reports. It focuses on table relationships, constraints, views, and SQL queries.
 
-**Tools:** SQL, SQLite, and Python. The database and reports are written in SQL; Python loads the files and prints the results.
+## Tools:
+
+**SQL, SQLite, and Python.**
+The database and reports are written in SQL; Python loads the files and prints the results.
 
 ## Run the project
 
