@@ -7,6 +7,7 @@ This started as a group project for an IT Database course. The GitHub version us
 ## Tools:
 
 **SQL, SQLite, and Python.**
+
 The database and reports are written in SQL; Python loads the files and prints the results.
 
 ## Run the project
